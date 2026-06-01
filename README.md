@@ -1,5 +1,10 @@
 # Playplay keygen
 
+> [!IMPORTANT]
+> ### **SPOTIFY HAS BANNED THE CLIENT VERSION USED BY THIS PROJECT, SO IT NO LONGER WORKS.**
+
+#
+
 This repository contains the Playplay keygen previously part of `spotify-dl-cli`.
 
 Original project: \
