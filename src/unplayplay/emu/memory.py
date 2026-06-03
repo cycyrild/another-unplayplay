@@ -17,6 +17,10 @@ def write_bytes(mu: Uc, va: int, data: bytes):
     mu.mem_write(va, data)
 
 
+def write_u16(mu: Uc, va: int, value: int):
+    mu.mem_write(va, value.to_bytes(2, "little", signed=False))
+
+
 def write_u32(mu: Uc, va: int, value: int):
     mu.mem_write(va, value.to_bytes(4, "little", signed=False))
 

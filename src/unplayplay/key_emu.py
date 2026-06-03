@@ -5,7 +5,7 @@ from pathlib import Path
 from pefile import PE
 from unicorn import UC_ARCH_X86, UC_HOOK_CODE, UC_MODE_64
 from unicorn.unicorn import Uc
-from unicorn.x86_const import UC_X86_REG_RDX
+from unicorn.x86_const import UC_X86_REG_RBX
 
 from unplayplay.consts import (
     AES_KEY_HOOK,
@@ -60,6 +60,7 @@ class KeyEmu:
         self._aes_key_va = self.rebase(AES_KEY_HOOK.TRIGGER_RIP)
         self._runtime_context_va = self.rebase(RT_DATA.RUNTIME_CONTEXT_VA)
         self._cxx_throw_exception_va = self.rebase(RT_FUNCTIONS.CXX_THROW_EXCEPTION_VA)
+        self._init_with_key_va = self.rebase(RT_FUNCTIONS.INIT_WITH_KEY_VA)
 
         self._seh_state = build_state(self._image_base)
 
@@ -82,7 +83,7 @@ class KeyEmu:
         hook_malloc(mu, self._image_base, heap)
 
         runtime.setup_stack(mu)
-        runtime.setup_teb(mu)
+        runtime.setup_process_environment(mu)
 
         mu.hook_add(
             UC_HOOK_CODE,
@@ -150,14 +151,14 @@ class KeyEmu:
 
     @staticmethod
     def _hook_aes_key(mu: Uc, address: int, size: int, session: EmuSession) -> None:
-        rdx = mu.reg_read(UC_X86_REG_RDX)
-        logger.debug("AES key hook triggered, capturing key")
-        session.captured_aes_key = mu.mem_read(rdx, EMULATOR_SIZES.KEY)
-        mu.emu_stop()
+        rbx = mu.reg_read(UC_X86_REG_RBX)
+        if rbx == AES_KEY_HOOK.TRIGGER_RBX:
+            rdx = mu.reg_read(UC_X86_REG_RBX)
+            logger.debug("AES key hook triggered, capturing key")
+            session.captured_aes_key = mu.mem_read(rdx, EMULATOR_SIZES.KEY)
+            mu.emu_stop()
 
-    def get_aes_key(self, obfuscated_key: bytes, content_id: bytes = b"") -> bytearray:
-        _ = content_id  # This version of Playplay don't use content_id
-
+    def get_aes_key(self, obfuscated_key: bytes)  -> bytearray:
         session = self._create_session()
 
         session.obfuscated_key.write(obfuscated_key)
@@ -169,6 +170,16 @@ class KeyEmu:
                 [
                     session.vm_obj.ptr,
                     session.obfuscated_key.ptr,
+                    session.derived_key.ptr,
+                    session.init_value.ptr,
+                ],
+            )
+
+            runtime.emulate_call(
+                session.mu,
+                self._init_with_key_va,
+                [
+                    session.vm_obj.ptr,
                     session.derived_key.ptr,
                     session.init_value.ptr,
                 ],
